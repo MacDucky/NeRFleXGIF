@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  nerfstudio:
+    image: dromni/nerfstudio:${NERF_STUDIO_VER}
+    container_name: nerf_studio
+    shm_size: '5gb'
+    ports:
+      - "7007:7007"
+
+    # These two are needed for interactive shells
+    stdin_open: true
+    tty: true
+
+    # Enable GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+    env_file:
+      - ./.env
+
+    volumes:
+      - ./data:/workspace/data
+      - ./.cache:/home/user/.cache
+    networks:
+      - NerfNetwork
+
+networks:
+  NerfNetwork:
+    name: nerf_net
