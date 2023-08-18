@@ -4,13 +4,14 @@ services:
   nerfstudio:
     image: dromni/nerfstudio:${NERF_STUDIO_VER}
     container_name: nerf_studio
-    shm_size: '5gb'
+    ipc: host
+    #    shm_size: '8gb'
     ports:
       - "7007:7007"
-
+    working_dir: /workspace
     # These two are needed for interactive shells
-    stdin_open: true
-    tty: true
+#    stdin_open: true
+#    tty: true
 
     # Enable GPU support
     deploy:
@@ -25,8 +26,9 @@ services:
       - ./.env
 
     volumes:
-      - ./data:/workspace/data
-      - ./.cache:/home/user/.cache
+      - C:\Users\lizas\PycharmProjects\NeRFleXGIF\.cache:/home/user/.cache
+#      - C:\Users\lizas\PycharmProjects\NeRFleXGIF\data:/workspace/data
+      - C:\Users\lizas\PycharmProjects\NeRFleXGIF:/workspace/
     networks:
       - NerfNetwork
 

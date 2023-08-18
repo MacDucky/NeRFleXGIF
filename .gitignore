@@ -215,4 +215,8 @@ fabric.properties
 
 # NeRF Dataset
 data/*
+outputs/*
 .cache/*
+
+# if run configurations should be added later on, change the following:
+.idea
