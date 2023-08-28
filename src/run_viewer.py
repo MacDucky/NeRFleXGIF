@@ -8,10 +8,10 @@ from multiprocessing import Process, set_start_method
 
 def start_viewer(config_path: Path | os.PathLike | str, background: bool = True) -> None | Process:
     """
-    Starts the web viewer of a trained model
-    :param config_path: configuration path to config.yml
+    Starts the web viewer of a trained model.
+    :param config_path: configuration path to **config.yml**
     :param background: If true then returns the Process object to be terminated manually later on. Otherwise,
-    termination is based on a busy wait.
+        termination is based on a busy wait.
     :return:
     """
     path_to_config = Path(config_path)

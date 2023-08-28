@@ -220,3 +220,9 @@ outputs/*
 
 # if run configurations should be added later on, change the following:
 .idea
+
+# rendered images/mp4 videos
+*.mp4
+*.png
+*.jpeg
+*.jpg
