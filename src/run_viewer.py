@@ -2,8 +2,13 @@ import os
 import sys
 import time
 from pathlib import Path
-from nerfstudio.scripts.viewer.run_viewer import RunViewer
+
+from PIL import Image, ImageDraw, ImageFont
+import torchvision.transforms as transforms
+
 from multiprocessing import Process, set_start_method
+from nerfstudio.scripts.viewer.run_viewer import RunViewer
+from nerfstudio.viewer.viser.server import ViserServer
 
 
 def start_viewer(config_path: Path | os.PathLike | str, background: bool = True) -> None | Process:
@@ -36,5 +41,30 @@ def start_viewer(config_path: Path | os.PathLike | str, background: bool = True)
     print('Done!')
 
 
+class ImageAdder:
+    def __init__(self):
+        self.viser_server = ViserServer('0.0.0.0', 7007)
+        self.next_image_index = 0
+
+
+
+    def add_image(self, cameras):
+        camera_json = cameras.to_json(self.next_image_index, self.create_number_image(100, 50, self.next_image_index),
+                                      max_size=100)
+        # self.viser_server.add_dataset_image(idx=f'{self.next_image_index:06d}', json=camera_json)
+
+
 if __name__ == '__main__':
+    # from nerfstudio.data.dataparsers.nerfstudio_dataparser import Nerfstudio, NerfstudioDataParserConfig
+    # from nerfstudio.data.dataparsers.base_dataparser import DataparserOutputs
+    # from transform_inputs import path_to_data
+    # from nerfstudio.cameras.camera_paths import get_interpolated_camera_path
+
     start_viewer(r'/workspace/outputs/poster/nerfacto/2023-08-18_164728/config.yml', background=False)
+    # adder = ImageAdder()
+    # parser: Nerfstudio = NerfstudioDataParserConfig(
+    #     data=path_to_data,
+    #     downscale_factor=8,
+    # ).setup()
+    # x: DataparserOutputs = parser.get_dataparser_outputs(split='train')
+    # # adder.add_image()

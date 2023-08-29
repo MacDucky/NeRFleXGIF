@@ -1,8 +1,21 @@
+import os
 import re
+import shutil
 import numpy as np
+from pathlib import Path
 from functools import total_ordering
 from typing import Literal
 from dataclasses import dataclass, field, fields, InitVar, asdict
+from contextlib import contextmanager
+
+
+@contextmanager
+def temporary_file_change(file_path: str | os.PathLike | Path):
+    current_file = Path(file_path)
+    real_file = current_file.parent.joinpath('real_file')
+    shutil.copy(current_file, real_file)
+    yield
+    shutil.move(real_file, current_file)
 
 
 @dataclass
@@ -18,6 +31,9 @@ class CameraIntrinsics:
     w: int
     h: int
     aabb_scale: int
+
+    def to_dict(self):
+        return asdict(self)
 
 
 @total_ordering
@@ -36,11 +52,25 @@ class Frame:
     def __eq__(self, other):
         return not (self < other or self > other)
 
+    def to_dict(self):
+        dct = {}
+        dct['file_path'] = self.file_path
+        dct['transform_matrix'] = self.transform_matrix.tolist()
+        return dct
+
 
 @dataclass
 class Transforms:
     intrinsics: CameraIntrinsics
     frames: list[Frame]
+
+    def to_dict(self, past_train: bool = False):
+        dct = {}
+        dct.update(self.intrinsics.to_dict())
+        if past_train:  # do this for full cameras matrices instead of just train.
+            dct['train_filenames'] = [frame.file_path for frame in self.frames]
+        dct['frames'] = [frame.to_dict() for frame in self.frames]
+        return dct
 
 
 def dict_to_transforms(dct: dict):

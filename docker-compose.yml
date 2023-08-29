@@ -31,6 +31,7 @@ services:
       - C:\Users\lizas\PycharmProjects\NeRFleXGIF:/workspace/
     networks:
       - NerfNetwork
+#    network_mode: "host"
 
 networks:
   NerfNetwork:
