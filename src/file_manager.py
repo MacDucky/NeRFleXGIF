@@ -28,12 +28,17 @@ class FileManager:
         self._path_to_output = self.BASE_OUTPUTS.joinpath(f'{self._data_name}/nerfacto/{self._train_name}')
 
         self._cam_path_dir = self._path_to_data.joinpath('camera_paths')
+        if not self._cam_path_dir.exists():
+            os.makedirs(str(self._cam_path_dir),exist_ok=True)
         self._transforms_path = self._path_to_data.joinpath('transforms.json')
         self._transforms = None
 
         self._renders_path = self.BASE_RENDERS.joinpath(self._data_name)
+        if not self._renders_path.exists():
+            os.makedirs(str(self._renders_path), exist_ok=True)
         self._last_rendered_images_path = self._renders_path.joinpath('last_render')
-
+        if not self._last_rendered_images_path.exists():
+            os.makedirs(str(self._last_rendered_images_path), exist_ok=True)
         self._data_parser: None | Nerfstudio = None
         self._dp_outputs = None
         self._viewer_poses = None
@@ -50,7 +55,7 @@ class FileManager:
             index = int(index_or_ext.search(image).group(1))
             ext = index_or_ext.search(image).group(2)
             if start_cut_point <= index <= end_cut_point:
-                shutil.copy(path_to_images.joinpath(image),tmp_dir.joinpath(f'frame_{f_index:0>5}.{ext}'))
+                shutil.copy(path_to_images.joinpath(image), tmp_dir.joinpath(f'frame_{f_index:0>5}.{ext}'))
                 f_index += 1
 
         # add synthesized images
@@ -60,14 +65,14 @@ class FileManager:
             shutil.copy(path_to_synthesized.joinpath(image), tmp_dir.joinpath(f'frame_{f_index:0>5}.{ext}'))
             f_index += 1
 
-    def load_transforms_file(self) -> Transforms:
-        if self._transforms is None:
+    def load_transforms_file(self, force_load: bool = False) -> Transforms:
+        if self._transforms is None or force_load:
             with open(self._transforms_path, 'r') as f:
                 self._transforms = json.load(f, object_hook=dict_to_transforms)
         return self._transforms
 
     def dump_sorted_transform_file(self, all_transforms: bool = False):
-        transform = self.load_transforms_file().to_dict(all_transforms)
+        transform = self.load_transforms_file(force_load=True).to_dict(all_transforms)
         with open(self._transforms_path, 'w') as fp:
             json.dump(transform, fp)
 
@@ -96,7 +101,7 @@ class FileManager:
         return self._dp_outputs.transform_poses_to_original_space(self._dp_outputs.cameras.camera_to_worlds,
                                                                   camera_convention)
 
-    def generate_cam_path_file(self, filename: str, start_idx: int, end_idx: int, fov: int,
+    def generate_cam_path_file(self, filename: str, start_idx: int, end_idx: int, fov: int, fps: float,
                                look_at_cameras: list[np.ndarray]):
         if not filename.lower().endswith('json'):
             filename = f'{filename}.json'
@@ -106,7 +111,6 @@ class FileManager:
         start_keyframe = Keyframe(self.viewer_poses()[start_idx - 1], fov)
         end_keyframe = Keyframe(self.viewer_poses()[end_idx - 1], fov)
         keyframes = [start_keyframe, end_keyframe]
-        fps = 24
         seconds = (len(look_at_cameras) + 2) / fps
         # assert len(look_at_cameras) == fps * seconds, \
         #     f'Transition frames should be of length {fps}*{seconds}={fps * seconds}'
@@ -117,12 +121,15 @@ class FileManager:
             json.dump(cam_path.to_dict(), fp)
         return self._cam_path_dir.joinpath(filename)
 
-    def create_gif(self, filename: str, cut_points: tuple[int,int], fps):
+    def create_gif(self, filename: str, cut_points: tuple[int, int], fps):
         # Setup Folders
+        if not filename.lower().endswith('gif'):
+            filename += '.gif'
+
         tmp_path = self._renders_path.joinpath('tmpdir')
         if tmp_path.exists():
-            tmp_path.rmdir()
-        tmp_path.mkdir(exist_ok=True)
+            shutil.rmtree(str(tmp_path))
+        os.makedirs(name=str(tmp_path), exist_ok=True)
 
         gifs_folder = tmp_path.parent.joinpath('gifs')
         gifs_folder.mkdir(exist_ok=True)
@@ -137,7 +144,7 @@ class FileManager:
 
 if __name__ == '__main__':
     x = FileManager('/workspace/outputs/poster/nerfacto/2023-08-18_164728/config.yml')
-    x.create_gif('test_gif.gif', (1,193))
+    x.create_gif('test_gif.gif', (1, 193))
     # transforms_json = x.load_transforms_file()
     # dct = transforms_json.to_dict()
     # with open(r'data/nerfstudio/poster/transforms.json', 'w') as fp:

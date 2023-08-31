@@ -30,7 +30,10 @@ class CameraIntrinsics:
     cy: float
     w: int
     h: int
-    aabb_scale: int
+    applied_transform: list[list[float]] = field(default_factory=lambda: np.identity(3).tolist())
+    aabb_scale: int = field(default=1)
+
+    # todo: add camera_model == opencv somewhere
 
     def to_dict(self):
         return asdict(self)
@@ -38,15 +41,19 @@ class CameraIntrinsics:
 
 @total_ordering
 class Frame:
+    INDEX_FINDER = re.compile(r'.*_(\d+)\..*')
 
-    def __init__(self, file_path: str, transform_matrix: np.ndarray):
+    def __init__(self, file_path: str, transform_matrix: np.ndarray, set_colmap_id: bool = False):
         self.file_path = file_path
         self.transform_matrix = transform_matrix
+        if set_colmap_id:
+            self.colmap_im_id = int(self.INDEX_FINDER.search(self.file_path).group(1))
+        else:
+            self.colmap_im_id = None
 
     def __lt__(self, other):
-        index_finder = re.compile(r'.*_(\d+)\..*')
-        my_index = int(index_finder.search(self.file_path).group(1))
-        other_index = int(index_finder.search(other.file_path).group(1))
+        my_index = int(self.INDEX_FINDER.search(self.file_path).group(1))
+        other_index = int(self.INDEX_FINDER.search(other.file_path).group(1))
         return my_index < other_index
 
     def __eq__(self, other):
@@ -56,6 +63,8 @@ class Frame:
         dct = {}
         dct['file_path'] = self.file_path
         dct['transform_matrix'] = self.transform_matrix.tolist()
+        if self.colmap_im_id is not None:
+            dct['colmap_im_id'] = self.colmap_im_id
         return dct
 
 
@@ -75,10 +84,11 @@ class Transforms:
 
 def dict_to_transforms(dct: dict):
     d_keys = set(dct.keys())
-    if d_keys == {'file_path', 'transform_matrix'}:
+    frame_fields = {'file_path', 'transform_matrix'}
+    if len(frame_fields.intersection(d_keys)) > 0:
         f_path = dct.get('file_path')
         t_mat = dct.get('transform_matrix')
-        return Frame(f_path, np.array(t_mat))
+        return Frame(f_path, np.array(t_mat), 'colmap_im_id' in d_keys)
 
     intrinsics_keys = d_keys.intersection([x.name for x in fields(CameraIntrinsics)])
     sub_dict = {k: v for k, v in dct.items() if k in intrinsics_keys}
