@@ -80,7 +80,7 @@ class Poses:
         v = np.linalg.norm(
             self.look_at_cameras[1].get_position() - self.look_at_cameras[0].get_position()) / self.tendency
         v_0 = np.linalg.norm(
-            self.look_at_cameras[-1].get_position() - self.look_at_cameras[-1].get_position()) / self.tendency
+            self.look_at_cameras[-1].get_position() - self.look_at_cameras[-2].get_position()) / self.tendency
         x = np.linalg.norm(self.look_at_cameras[0].get_position() - self.look_at_cameras[-1].get_position())
         t = 2 * x / (v + v_0)
         t = np.ceil(t / self.tendency) * self.tendency
