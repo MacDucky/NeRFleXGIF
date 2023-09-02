@@ -43,6 +43,38 @@ class FileManager:
         self._dp_outputs = None
         self._viewer_poses = None
 
+    @property
+    def config_path(self):
+        return self._config_path
+
+    @property
+    def project_name(self):
+        return self._data_name
+
+    @property
+    def data_path(self):
+        return self._path_to_data
+
+    @property
+    def output_path(self):
+        return self._path_to_output
+
+    @property
+    def cam_dir_path(self):
+        return self._cam_path_dir
+
+    @property
+    def transforms_path(self):
+        return self._transforms_path
+
+    @property
+    def renders_dir(self):
+        return self._renders_path
+
+    @property
+    def last_render_dir(self):
+        return self._last_rendered_images_path
+
     def __merge_real_synthesized_images(self, start_cut_point: int, end_cut_point: int):
         tmp_dir = self._renders_path.joinpath('tmpdir')
         path_to_images = self._path_to_data.joinpath('images')
@@ -108,6 +140,7 @@ class FileManager:
         first_image_path = next(self._path_to_data.joinpath('images').iterdir())
         image = Image.open(first_image_path)
         width, height = image.size
+        image.close()
         start_keyframe = Keyframe(self.viewer_poses()[start_idx - 1], fov)
         end_keyframe = Keyframe(self.viewer_poses()[end_idx - 1], fov)
         keyframes = [start_keyframe, end_keyframe]
@@ -116,7 +149,7 @@ class FileManager:
         #     f'Transition frames should be of length {fps}*{seconds}={fps * seconds}'
         cam_path = CameraPath(keyframes, 'perspective', height, width,
                               [CameraPose(lookat, fov) for lookat in look_at_cameras],
-                              fps, seconds)
+                              int(fps), seconds)
         with open(self._cam_path_dir.joinpath(filename), 'w') as fp:
             json.dump(cam_path.to_dict(), fp)
         return self._cam_path_dir.joinpath(filename)
@@ -140,14 +173,3 @@ class FileManager:
 
         create_gif_from_image_dir(image_dir=tmp_path, fps=fps, output_path=gifs_folder.joinpath(filename))
         shutil.rmtree(tmp_path, ignore_errors=True)
-
-
-if __name__ == '__main__':
-    x = FileManager('/workspace/outputs/poster/nerfacto/2023-08-18_164728/config.yml')
-    x.create_gif('test_gif.gif', (1, 193))
-    # transforms_json = x.load_transforms_file()
-    # dct = transforms_json.to_dict()
-    # with open(r'data/nerfstudio/poster/transforms.json', 'w') as fp:
-    #     json.dump(dct, fp)
-    # x.generate_cam_path_file('test_class', 10, 25, 50, np.zeros(shape=(5, 4, 4)))
-    i = 0

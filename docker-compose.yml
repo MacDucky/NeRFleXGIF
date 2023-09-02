@@ -36,3 +36,6 @@ services:
 networks:
   NerfNetwork:
     name: nerf_net
+
+# standalone equivalent
+# docker run --gpus all -v C:\Users\lizas\PycharmProjects\NeRFleXGIF:/workspace/ -v C:\Users\lizas\PycharmProjects\NeRFleXGIF\.cache:/home/user/.cache/ -p 7007:7007 --rm -it --ipc=host dromni/nerfstudio:0.3.2

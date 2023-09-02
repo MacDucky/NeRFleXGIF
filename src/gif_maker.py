@@ -30,7 +30,3 @@ def create_gif_from_image_dir(image_dir: str | os.PathLike | pathlib.Path, fps: 
 
         # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
         img.save(fp=output_path, format='GIF', append_images=imgs, save_all=True, duration=1000 / fps, loop=0)
-
-
-if __name__ == '__main__':
-    create_gif_from_image_dir(r'/workspace/data/nerfstudio/poster/images', 24, r'/workspace/renders/poster/test_images/testgifreal.gif')
