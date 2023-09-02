@@ -28,48 +28,84 @@ def find_angle(mid_point, point1, point2):
 
 class Poses:
     def __init__(self, cameras_extrinsic: ndarray, fps: float):
+        self.fps = fps
         self.tendency = 1 / fps
         self.look_at_cameras = []
         for camera_extrinsic in cameras_extrinsic:
             self.look_at_cameras.append(LookAtCamera(camera_extrinsic))
+        self.og_num_frames = len(self.look_at_cameras)
         self.first_idx = 1
         self.last_idx = len(self.look_at_cameras)
         self.generated_cameras = None
+
+    def get_edges_points(self) -> tuple[int, int, int, int]:
+        return self.look_at_cameras[0].get_position(), self.look_at_cameras[1].get_position(), self.look_at_cameras[
+            -1].get_position(), self.look_at_cameras[-2].get_position()
+
+    def get_edges_angles(self) -> tuple[int, int]:
+        first_pnt, second_pnt, last_pnt, last_second_pnt = self.get_edges_points()
+        first_angle = pi - find_angle(first_pnt, second_pnt, last_pnt)
+        last_angle = pi - find_angle(last_pnt, last_second_pnt, first_pnt)
+        return first_angle, last_angle
+
+    def get_points_for_start_angles(self, index: int):
+        return self.look_at_cameras[0].get_position(), self.look_at_cameras[1].get_position(), self.look_at_cameras[
+            -1 - index].get_position(), self.look_at_cameras[-2 - index].get_position()
+
+    def get_points_for_end_angles(self, index: int):
+        return self.look_at_cameras[-1].get_position(), self.look_at_cameras[-2].get_position(), self.look_at_cameras[
+            index].get_position(), self.look_at_cameras[index + 1].get_position()
+
+    def get_start_angles(self, index: int) -> tuple[int, int]:
+        first_pnt, second_pnt, last_pnt, last_second_pnt = self.get_points_for_start_angles(index)
+        angle = pi - find_angle(first_pnt, second_pnt, last_pnt)
+        next_angle = pi - find_angle(first_pnt, second_pnt, last_second_pnt)
+        return angle, next_angle
+
+    def get_end_angles(self, index: int) -> tuple[int, int]:
+        last_pnt, last_second_pnt, first_pnt, second_pnt = self.get_points_for_end_angles(index)
+        angle = pi - find_angle(last_pnt, last_second_pnt, first_pnt)
+        next_angle = pi - find_angle(last_pnt, last_second_pnt, second_pnt)
+        return angle, next_angle
+
+    def get_angles(self, is_start: bool, index: int):
+        return self.get_start_angles(index) if is_start else self.get_end_angles(index)
+
+    def pop_cameras(self, is_end: bool, num_pop_cams: int):
+        if is_end:
+            self.look_at_cameras = self.look_at_cameras[:-num_pop_cams]
+            self.last_idx -= num_pop_cams
+        else:
+            self.look_at_cameras = self.look_at_cameras[num_pop_cams:]
+            self.first_idx += num_pop_cams
+
+    def pop_from_edge(self, is_end: bool) -> bool:
+        did_pop = False
+        counter = 1
+        while not did_pop and counter <= np.ceil(self.fps / 5) + 1:
+            angle, next_angle = self.get_angles(is_end, counter - 1)
+            if abs(angle) > abs(next_angle) or (angle > 0) ^ (next_angle > 0):
+                did_pop = True
+                self.pop_cameras(is_end, counter)
+            counter += 1
+        return did_pop
 
     def cut_poses(self):
         """
         cutting the poses of the cameras which are unnecessary for the newly generated video
         """
-        # the points
-        first_pnt = self.look_at_cameras[0].get_position()
-        second_pnt = self.look_at_cameras[1].get_position()
-        last_pnt = self.look_at_cameras[-1].get_position()
-        last_second_pnt = self.look_at_cameras[-2].get_position()
-
-        # cut the transforms
         did_pop = True
         while len(self.look_at_cameras) > 4 and did_pop:
             did_pop = False
-            # the angles
-            first_angle = pi - find_angle(first_pnt, second_pnt, last_pnt)
-            second_angle = pi - find_angle(first_pnt, second_pnt, last_second_pnt)
-            last_angle = pi - find_angle(last_pnt, last_second_pnt, first_pnt)
-            last_second_angle = pi - find_angle(last_pnt, last_second_pnt, second_pnt)
+            first_angle, last_angle = self.get_edges_angles()
+            is_pop_from_end = abs(first_angle) < abs(last_angle)
 
-            if abs(first_angle) < abs(last_angle):
-                if abs(first_angle) > abs(second_angle) or (first_angle > 0) ^ (second_angle > 0):
-                    did_pop = True
-                    self.look_at_cameras = self.look_at_cameras[:-1]
-                    self.last_idx -= 1
-                    last_pnt = last_second_pnt
-                    last_second_pnt = self.look_at_cameras[-2].get_position()
-            if not did_pop:
-                if abs(last_angle) > abs(last_second_angle) or (last_angle > 0) ^ (last_second_angle > 0):
-                    did_pop = True
-                    self.look_at_cameras = self.look_at_cameras[1:]
-                    self.first_idx += 1
-                    first_pnt = second_pnt
-                    second_pnt = self.look_at_cameras[1].get_position()
+            if is_pop_from_end:
+                did_pop = self.pop_from_edge(is_end=True)
+            elif not did_pop:
+                did_pop = self.pop_from_edge(is_end=False)
+                if not is_pop_from_end and not did_pop:
+                    did_pop = self.pop_from_edge(is_end=True)
 
     def time_between_poses(self) -> float:
         """
