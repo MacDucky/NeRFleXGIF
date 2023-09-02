@@ -156,7 +156,7 @@ class FileManager:
 
     def create_gif(self, filename: str, cut_points: tuple[int, int], fps):
         # Setup Folders
-        if not filename.lower().endswith('gif'):
+        if not filename.lower().endswith('.gif'):
             filename += '.gif'
 
         tmp_path = self._renders_path.joinpath('tmpdir')
