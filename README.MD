@@ -78,34 +78,62 @@ For all the algorithm we look at the frames as their cameras extrinsic.
 ### Cutting The Video
 
 To cut the frames from the video, we build 2 lines, one from the first and second frames positions, and the other from
-the last two frames positions. we calculate what is the distance between the first frame position and the last line
+the last two frames positions. we calculate the angle between the first frame position and the last line we'll call it
+last angle, and
+the other side too (between the last position and first line) and we'll call it first angle.
+If first angle is smaller than last angle we'll pop from the end, otherwise we will pop the start.
+And if from one edge we can't pop we'll try to pop from the other edge.
+We pop a frame from an edge if the angle between the position of the frame and the line of the other edge is bigger from
+angle between the next position frame and the line other edge.
+For robustness we don't pop from an edge if the angle in the first couple of frames grows.
+
+![img_2.png](img_2.png)
+
 ```python
     def cut_poses(self):
-        did_pop = True
-        while len(self.look_at_cameras) > 4 and did_pop:
-            did_pop = False
-            d1, d2 = self.get_edges_distances()
-            is_pop_from_end = d1 < d2
-            if is_pop_from_end:
+    did_pop = True
+    while len(self.look_at_cameras) > 4 and did_pop:
+        did_pop = False
+        first_angle, last_angle = self.get_edges_angles()
+        is_pop_from_end = abs(first_angle) < abs(last_angle)
+
+        if is_pop_from_end:
+            did_pop = self.pop_from_edge(is_end=True)
+        elif not did_pop:
+            did_pop = self.pop_from_edge(is_end=False)
+            if not is_pop_from_end and not did_pop:
                 did_pop = self.pop_from_edge(is_end=True)
-            elif not did_pop:
-                did_pop = self.pop_from_edge(is_end=False)
-                if not is_pop_from_end and not did_pop:
-                    did_pop = self.pop_from_edge(is_end=True)
 ```
+
 ```python
     def pop_from_edge(self, is_end: bool) -> bool:
-        did_pop = False
-        counter = 1
-        while not did_pop and counter <= np.ceil(self.fps / 5) + 1:
-            angle, next_angle = self.get_angles(is_end, counter - 1)
-            if abs(angle) > abs(next_angle) or (angle > 0) ^ (next_angle > 0):
-                did_pop = True
-                self.pop_cameras(is_end, counter)
-            counter += 1
-        return did_pop
+
+
+    did_pop = False
+counter = 1
+while not did_pop and counter <= 5:
+    angle, next_angle = self.get_angles(is_end, counter - 1)
+    if abs(angle) > abs(next_angle) or (angle > 0) ^ (next_angle > 0):
+        did_pop = True
+        self.pop_cameras(is_end, counter)
+    counter += 1
+return did_pop
 ```
+
+the results of the algorithm:
+
 ![img.png](img.png)
 ![img_1.png](img_1.png)
 
 ### Generating New Video
+
+To generate new cameras, we need to build a trace dependent on the time of the frame.
+we first define the time of the last frame to be 0 and the first to be t, such that t is:
+
+```math
+t = \lceil 2 \cdot (p - p_0) / (v - v_0) * fps \rceil / fps
+```
+
+After that we put the 2 first frame and 2 last frame (when we know that the tendency between every frame is constant) on
+a spline. We sample positions of frames from the spline using the fps of the video.
+And the directions of the frames we create from linear interpolation.
