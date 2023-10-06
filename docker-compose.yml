@@ -27,7 +27,6 @@ services:
 
     volumes:
       - C:\Users\lizas\PycharmProjects\NeRFleXGIF\.cache:/home/user/.cache
-#      - C:\Users\lizas\PycharmProjects\NeRFleXGIF\data:/workspace/data
       - C:\Users\lizas\PycharmProjects\NeRFleXGIF:/workspace/
     networks:
       - NerfNetwork
