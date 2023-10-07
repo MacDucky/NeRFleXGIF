@@ -169,11 +169,25 @@ After determining the remaining number of frames following the cut, we can estim
 is proportionate to the number of frames in the complementary $\alpha$ section after the cut. This computation can be
 expressed as follows:
 
+### Generating New Frames
+
+To generate new cameras, we need to build a path dependent on the time of the frame.
+We start by setting time points for our frames. We say the time for the last frame is 0, and the first frame's time is 't'. Here's how we calculate 't':
+
+```math
+t = {\lceil 2 \cdot fps \cdot {p - p_0 \over v - v_0} \rceil \over fps}
+```
+
+After that, we place the first two frames and the last two frames on a smooth curve (Spline technique). We do this because we assume that the motion between frames stays pretty consistent.
+
+As we follow this curve, we pick where each frame goes based on how many frames per second the video has (fps). 
+We also figure out the direction of each frame using linear interpolation on the vector directions. This whole process gives us synthesized frames that are both visually appealing and completes the path from the endpoint to the starting point.
+
 ```math
 number of steps = \lceil{\alpha * \#frames \over (2\pi - \alpha)}\rceil
 ```
 
-### Cutting The Video
+### Cutting The Video - old
 
 To cut the frames from the video, we build 2 lines, one from the first and second frames positions, and the other from
 the last two frames positions. we calculate the angle between the first frame position and the last line we'll call it
@@ -224,16 +238,3 @@ the results of the algorithm:
 
 ![img.png](img.png)
 ![img_1.png](img_1.png)
-
-### Generating New Video
-
-To generate new cameras, we need to build a trace dependent on the time of the frame.
-we first define the time of the last frame to be 0 and the first to be t, such that t is:
-
-```math
-t = {\lceil 2 \cdot fps \cdot {p - p_0 \over v - v_0} \rceil \over fps}
-```
-
-After that we put the 2 first frame and 2 last frame (when we know that the tendency between every frame is constant) on
-a spline. We sample positions of frames from the spline using the fps of the video.
-And the directions of the frames we create from linear interpolation.
