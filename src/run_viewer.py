@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # from transform_inputs import path_to_data
     # from nerfstudio.cameras.camera_paths import get_interpolated_camera_path
 
-    start_viewer(r'/workspace/outputs/poster/nerfacto/2023-08-18_164728/config.yml', background=False)
+    start_viewer(r'/workspace/outputs/chair/nerfacto/2023-09-02_163102/config.yml', background=False)
     # adder = ImageAdder()
     # parser: Nerfstudio = NerfstudioDataParserConfig(
     #     data=path_to_data,

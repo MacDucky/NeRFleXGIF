@@ -6,20 +6,13 @@ import subprocess
 import time
 
 from pathlib import Path
-from argparse import ArgumentParser
 from typing import Callable
 
 from src.poses import Poses
 from src.file_manager import FileManager
-
 from src.video_utils import VideoData
-
-
-def path(s):
-    p = Path(s)
-    if not p.exists() or not p.is_file():
-        raise TypeError('Path is invalid or is not a file.')
-    return p
+from src.visualization_main import visualization_main
+from src.parser import parsed_args
 
 
 def get_last_trained_model(trained_dir) -> Path:
@@ -50,32 +43,11 @@ def execute_and_track_output(cmd: list[str], kill_proc_cond: Callable[[str], boo
         raise subprocess.CalledProcessError(return_code, cmd)
 
 
-def parsed_args():
-    parser = ArgumentParser('NerFlexGif', description='A perfect GIF creator.',
-                            epilog="Flow: 1. Process video (COLMAP). 2. Train NeRF model."
-                                   "3. Crop excess parts. 4. Synthesize middle frames. 5. Generate GIF!")
-    parser.add_argument('-v', '--video-path', type=path, required=True,
-                        help="Path to video file to process.")
-    parser.add_argument('-p', '--project-name', type=str,
-                        help='Name of project. Default is video name.')
-    parser.add_argument('--skip-train', action='store_true',
-                        help="Skip training, model was trained ahead of time.")
-    parser.add_argument('--train-from-checkpoint', action='store_true',
-                        help="Continue training from checkpoint")
-    parser.add_argument('-g', '--gif-output-name', dest='gif_filename', type=str,
-                        help='Name of output GIF. Default is video name.')
-    args = parser.parse_args()
-    if args.skip_train and args.train_from_checkpoint:
-        parser.error('Can not use \'--skip-train\' and \'--train-from-checkpoint\' simultaneously!')
-    return parser.parse_args()
-
-
-if __name__ == '__main__':
-    num_frames_target = 300
+def flawless_gif_main(args):
+    # num_frames_target_for_cmd = 250
+    num_frames_target_for_cmd = 300
     # ---------------------------------------  Preprocess video metadata  ----------------------------------------
     # process data - both ns-process && get video metadata
-    args = parsed_args()
-
     video_path: Path = args.video_path
     if args.project_name is not None:
         project_name = args.project_name
@@ -84,16 +56,18 @@ if __name__ == '__main__':
 
     video_data = VideoData(video_path)
 
-    spacing = video_data.frame_count // num_frames_target
-    number_of_frames = math.ceil(video_data.frame_count / spacing) if spacing > 1 else VideoData.frame_count
+    spacing = video_data.frame_count // num_frames_target_for_cmd
+    number_of_frames = math.ceil(video_data.frame_count / spacing) if spacing > 1 else video_data.frame_count
     fps = (number_of_frames / video_data.frame_count) * video_data.fps
     # ---------------------------------------  Preprocess via COLMAP  --------------------------------------------
     processed_dir = Path(f'/workspace/data/nerfstudio/{project_name}')
     if processed_dir.exists() and processed_dir.joinpath('transforms.json').exists():
         print('Data already pre-processed. Skipping step!')
     else:
-        print(f'Going to process video:{video_path.name}, with command:')
-        process_cmd = ['ns-process-data', 'video', '--data', str(video_path), '--output-dir', processed_dir]
+        print(f'Going to process video: {video_path.name}, with command:')
+        process_cmd = ['ns-process-data', 'video', '--data', str(video_path), '--output-dir', str(processed_dir), '--num-frames-target', str(num_frames_target_for_cmd)]
+                       # '--verbose']
+                       # '--matching-method exhaustive', '--verbose']
         # f'--num-frames-target {video_data.frame_count}')  # add this to process all video frames.
         print(process_cmd)
         try:
@@ -113,14 +87,12 @@ if __name__ == '__main__':
     else:
         print(f'Going to train NeRF model on COLMAP data, with command:')
 
-
     def kill_cond(s: str):
         match = re.search(r'.*100\.\d{1,2}%.*', s)
         if match:
             time.sleep(20)
             return True
         return False
-
 
     if not args.skip_train:
         for line in execute_and_track_output(train_cmd, kill_proc_cond=kill_cond):
@@ -131,7 +103,7 @@ if __name__ == '__main__':
     last_trained_config_dir = get_last_trained_model(trained_dir)
     fm = FileManager(trained_dir.joinpath(last_trained_config_dir).joinpath('config.yml'))
     cameras_extrinsic = fm.viewer_poses(all_poses=True, update_poses=True)
-    poses = Poses(cameras_extrinsic, fps)
+    poses = Poses(cameras_extrinsic, fps, fm.cameras)
     poses.show_poses()
     poses.complete_path()
     poses.show_poses()
@@ -148,7 +120,7 @@ if __name__ == '__main__':
     print('Camera paths created!')
     # ---------------------------------------  Render synthesized part of the cut-out track  -------------------
     print('Synthesizing missing frames...')
-    shutil.rmtree(fm.last_render_dir)
+    shutil.rmtree(fm.last_render_dir, ignore_errors=True)
     os.makedirs(fm.last_render_dir)
     render_cmd = ['ns-render', 'camera-path', '--output-format', 'images',
                   '--load-config', str(fm.config_path),
@@ -165,7 +137,18 @@ if __name__ == '__main__':
     # ---------------------------------------  Create a GIF on the final output  -------------------------------
     print('Creating GIF...')
     if args.gif_filename:
-        fm.create_gif(args.gif_filename, cut_interval, fps)
+        gif_name = args.gif_filename
     else:
-        fm.create_gif(project_name, cut_interval, fps)
+        gif_name = project_name
+    fm.create_gif(gif_name, cut_interval, fps, args.keep_gif_dir)
     print(f'Done! GIF is created at: {fm.renders_dir.joinpath("gifs")}')
+
+
+if __name__ == '__main__':
+    args = parsed_args()
+    subparser = args.which
+    match subparser:
+        case 'create_gif':
+            flawless_gif_main(args)
+        case 'visualization_kit':
+            visualization_main(args)
