@@ -170,7 +170,7 @@ is proportionate to the number of frames in the complementary $\alpha$ section a
 expressed as follows:
 
 ```math
-number of steps = \lceil{\alpha * #frames \over (2\pi - \alpha)}\rceil
+number of steps = \lceil{\alpha * \#_frames \over (2\pi - \alpha)}\rceil
 ```
 
 ### Cutting The Video
