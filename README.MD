@@ -6,21 +6,22 @@ aim was to craft flawless circular GIF images from captured videos, achieving a 
 ___
 
 <!-- TOC -->
-
 * [NeRFlexGIF](#nerflexgif)
-    * [Installation steps](#installation-steps)
-        * [Prerequisites:](#prerequisites)
-            * [Requirements:](#requirements)
-        * [Installation process:](#installation-process)
-    * [Introduction](#introduction)
-    * [Preliminaries](#preliminaries)
-        * [NeRF](#nerf)
-        * [Camera Extrinsic](#camera-extrinsic)
-        * [Cubic Splines](#cubic-splines)
-    * [Algorithm](#algorithm)
-        * [Cutting The Video](#cutting-the-video)
-        * [Generating New Video](#generating-new-video)
-
+  * [Installation steps](#installation-steps)
+    * [Prerequisites:](#prerequisites)
+      * [Requirements:](#requirements)
+    * [Installation process:](#installation-process)
+  * [Introduction](#introduction)
+  * [Preliminaries](#preliminaries)
+    * [NeRF](#nerf)
+    * [Camera Extrinsic](#camera-extrinsic)
+    * [Cubic Splines](#cubic-splines)
+  * [The Algorithm](#the-algorithm)
+    * [Cut Point Identification](#cut-point-identification)
+    * [Connecting endpoints:](#connecting-endpoints)
+    * [Spline sample rate](#spline-sample-rate)
+    * [Generating New Frames](#generating-new-frames)
+    * [Cutting The Video - old](#cutting-the-video---old)
 <!-- TOC -->
 
 ## Installation steps
