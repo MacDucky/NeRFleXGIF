@@ -366,7 +366,7 @@ class Poses:
             scatter_3d_ax.set_xlabel('X axis')
             scatter_3d_ax.set_ylabel('Y axis')
             scatter_3d_ax.set_zlabel('Z axis')
-            scatter_3d_ax.view_init(elev=20, azim=70)
+            scatter_3d_ax.view_init(elev=20, azim=30)
         plt.tight_layout()
         if save_figure_path is not None:
             plt.savefig(save_figure_path)

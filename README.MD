@@ -6,26 +6,28 @@ aim was to craft flawless circular GIF images from captured videos, achieving a 
 ___
 
 <!-- TOC -->
+
 * [NeRFlexGIF](#nerflexgif)
-  * [Installation steps](#installation-steps)
-    * [Prerequisites:](#prerequisites)
-      * [Requirements:](#requirements)
-    * [Installation process:](#installation-process)
-  * [Introduction](#introduction)
-  * [Preliminaries](#preliminaries)
-    * [NeRF](#nerf)
-    * [Camera Extrinsic](#camera-extrinsic)
-    * [Cubic Splines](#cubic-splines)
-  * [The Algorithm](#the-algorithm)
-    * [Cut Point Identification](#cut-point-identification)
-    * [Connecting endpoints:](#connecting-endpoints)
-    * [Spline sample rate](#spline-sample-rate)
-    * [Generating New Frames](#generating-new-frames)
-      * [Step 1.](#step-1)
-      * [Step 2.](#step-2)
-    * [Results](#results)
-      * [Chair](#chair)
-      * [Vase](#vase)
+    * [Installation steps](#installation-steps)
+        * [Prerequisites:](#prerequisites)
+            * [Requirements:](#requirements)
+        * [Installation process:](#installation-process)
+    * [Introduction](#introduction)
+    * [Preliminaries](#preliminaries)
+        * [NeRF](#nerf)
+        * [Camera Extrinsic](#camera-extrinsic)
+        * [Cubic Splines](#cubic-splines)
+    * [The Algorithm](#the-algorithm)
+        * [Cut Point Identification](#cut-point-identification)
+        * [Connecting endpoints:](#connecting-endpoints)
+        * [Spline sample rate](#spline-sample-rate)
+        * [Generating New Frames](#generating-new-frames)
+            * [Step 1.](#step-1)
+            * [Step 2.](#step-2)
+        * [Results](#results)
+            * [Chair dataset](#chair-dataset)
+            * [Vase dataset](#vase-dataset)
+
 <!-- TOC -->
 
 ## Installation steps
@@ -235,20 +237,31 @@ ___
 
 ### Results
 
-We've run our algorithm on 3 datasets, one original dataset provided by NerfStudio, and two "field" datasets that we took from a 
+We've run our algorithm on 3 datasets, one original dataset provided by NerfStudio, and two "field" datasets that we
+took from a
 Pixel 3a smartphone (30~ fps), we'll produce the results for the field datasets.
 
 #### Chair dataset
+
 Chair cut stages:
 
 <img src="md_resources/chair_stages.png" alt="drawing" width="1100"/>
 
+[![CHAIR GIF](md_resources/chair_youtube.png)](https://www.youtube.com/watch?v=qywgqBxL1DM "Chair GIF")
+
 #### Vase dataset
+
 Vase cut stages:
 
 <img src="md_resources/vase_stages.png" alt="drawing" width="1100"/>
 
 [![VASE GIF](md_resources/vase_youtube.png)](https://www.youtube.com/watch?v=gdrnqnHRqi8 "Vase GIF")
 
+It's important to highlight that the cut algorithm has performed exactly as anticipated. The selected cut points
+facilitated a seamless transition along the z-axis. The difference in z-height accumulated between the new start and end
+points is harnessed as a valuable "potential," ready to be utilized in generating frames smoothly from the end to the
+start point.
+
 ---
-Special thanks to [Simon Korman](https://scholar.google.com/citations?user=6OZMoP0AAAAJ&hl=en) for supervising this project!
+Special thanks to [Simon Korman](https://scholar.google.com/citations?user=6OZMoP0AAAAJ&hl=en) for supervising this
+project!
