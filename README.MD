@@ -248,7 +248,11 @@ Vase cut stages:
 
 <img src="md_resources/vase_stages.png" alt="drawing" width="1100"/>
 Vase NerFlexGIF:
-[![vase.gif](https://img.youtube.com/vi/gdrnqnHRqi8/0.jpg)](https://www.youtube.com/watch?v=gdrnqnHRqi8)
+<div align="left">
+      <a href="https://www.youtube.com/watch?v=gdrnqnHRqi8">
+         <img src="https://img.youtube.com/vi/gdrnqnHRqi8/0.jpg" style="width:100%;">
+      </a>
+</div>
 
 ---
 Special thanks to [Simon Korman](https://scholar.google.com/citations?user=6OZMoP0AAAAJ&hl=en) for supervising this project!
