@@ -12,17 +12,19 @@ from src import image_utils
 
 
 def visualization_main(args):
+    # fm = FileManager('outputs/vase/nerfacto/2023-10-06_134057/config.yml')
     fm = FileManager('outputs/chair/nerfacto/2023-09-02_163102/config.yml')
     video_path = fm.data_path / 'video' / f'{fm.project_name}.mp4'
     video_data = VideoData(video_path)
+    # num_frames_target = 250
     num_frames_target = 300
     spacing = video_data.frame_count // num_frames_target
-    number_of_frames = math.ceil(video_data.frame_count / spacing) if spacing > 1 else VideoData.frame_count
+    number_of_frames = math.ceil(video_data.frame_count / spacing) if spacing > 1 else video_data.frame_count
     fps = (number_of_frames / video_data.frame_count) * video_data.fps
     poses = Poses(fm.viewer_poses(all_poses=True, update_poses=True), fps, fm.cameras)
-    poses.show_poses()
+    # poses.show_poses()
     fullpath_lookats = poses.complete_path()
-    poses.show_poses()
+    # poses.show_poses()
     a = poses.get_generated_poses()
     b = poses.get_cut_indices()
     print(b)

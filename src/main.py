@@ -104,9 +104,9 @@ def flawless_gif_main(args):
     fm = FileManager(trained_dir.joinpath(last_trained_config_dir).joinpath('config.yml'))
     cameras_extrinsic = fm.viewer_poses(all_poses=True, update_poses=True)
     poses = Poses(cameras_extrinsic, fps, fm.cameras)
-    poses.show_poses()
+    # poses.show_poses()
     poses.complete_path()
-    poses.show_poses()
+    # poses.show_poses()
     generated_cameras = poses.get_generated_poses()
     cut_interval: tuple[int, int] = poses.get_cut_indices()
 
@@ -141,7 +141,8 @@ def flawless_gif_main(args):
     else:
         gif_name = project_name
     fm.create_gif(gif_name, cut_interval, fps, args.keep_gif_dir)
-    print(f'Done! GIF is created at: {fm.renders_dir.joinpath("gifs")}')
+    gif_path = fm.renders_dir / 'gifs' / gif_name
+    print(f'Done! GIF is created at: {gif_path}')
 
 
 if __name__ == '__main__':

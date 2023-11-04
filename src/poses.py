@@ -200,21 +200,27 @@ class Poses:
 
             points = np.array([self.look_at_cameras[-2].get_position(), self.look_at_cameras[-1].get_position(),
                                self.look_at_cameras[0].get_position(), self.look_at_cameras[1].get_position()])
-            points = np.array(points)
             times = np.array([-self.tendency, 0, self.tendency * num_of_steps, (self.tendency + 1) * num_of_steps])
+
             spline = Spline(times, points)
 
-            samples_percentile = 0.2 if num_of_steps > 20 else 0.5
+            samples_percentile = 0.3 if num_of_steps > 30 else 0.5
             time_samples = np.linspace(0, self.tendency * num_of_steps, int(np.ceil(num_of_steps * samples_percentile)))
-            position_samples = [spline.sample_point(t_point) for t_point in time_samples]
+            position_samples = [spline.sample_point(t_point) for t_point in time_samples[1:-1]]
             time_samples = time_samples / max(time_samples)
-            direction_samples = [create_direction(first_direction, last_direction, t) for t in time_samples]
-            generated_key_poses = [LookAtCamera.from_position_and_direction(pos, direction).look_at_cam[:-1, :] for
-                                   pos, direction in zip(position_samples, direction_samples)]
-
-            generated_key_poses = [self.look_at_cameras[-2].look_at_cam[:-1, :]] + generated_key_poses + [
-                self.look_at_cameras[2].look_at_cam[:-1, :]]
-            steps_per_transition = int(np.ceil(int(num_of_steps / len(generated_key_poses)) * 1.2))
+            backward_samples = [create_direction(first_direction, last_direction, t) for t in time_samples[1:-1]]
+            up_samples = [create_direction(self.look_at_cameras[-1].get_up(), self.look_at_cameras[0].get_up(), t) for t
+                          in time_samples[1:-1]]
+            generated_key_poses = [LookAtCamera.from_position_and_direction(pos, direction, up).look_at_cam[:-1, :] for
+                                   pos, direction, up in zip(position_samples, backward_samples, up_samples)]
+            generated_key_poses = ([self.look_at_cameras[-2].look_at_cam[:-1, :],
+                                    self.look_at_cameras[-1].look_at_cam[:-1, :]] +
+                                   generated_key_poses +
+                                   [self.look_at_cameras[0].look_at_cam[:-1, :],
+                                    self.look_at_cameras[1].look_at_cam[:-1, :]])
+            # generated_key_poses = [self.look_at_cameras[-2].look_at_cam[:-1, :]] + generated_key_poses + [
+            #     self.look_at_cameras[2].look_at_cam[:-1, :]]
+            steps_per_transition = int(np.ceil(int(num_of_steps / len(generated_key_poses))))
             cam_intrinsics = self.cameras.get_intrinsics_matrices()
 
             generated_cameras, _ = get_interpolated_poses_many(
@@ -226,7 +232,7 @@ class Poses:
 
             # remove duplicated frames,
             # resulting from generated_key_poses (done deliberately to smooth transition at starting/endpoints
-            generated_cameras = generated_cameras[steps_per_transition: - steps_per_transition]
+            generated_cameras = generated_cameras[steps_per_transition:-steps_per_transition]
             # generated_cameras = get_interpolated_poses(self.look_at_cameras[-1].look_at_cam,
             #                                            self.look_at_cameras[0].look_at_cam, steps=round(num_of_steps))
             full_cams = []
@@ -360,7 +366,7 @@ class Poses:
             scatter_3d_ax.set_xlabel('X axis')
             scatter_3d_ax.set_ylabel('Y axis')
             scatter_3d_ax.set_zlabel('Z axis')
-            scatter_3d_ax.view_init(elev=20, azim=30)
+            scatter_3d_ax.view_init(elev=20, azim=70)
         plt.tight_layout()
         if save_figure_path is not None:
             plt.savefig(save_figure_path)
@@ -384,7 +390,7 @@ class Poses:
 
     def __calculate_best_vertical_candidates(self):
         num_cameras = len(self.look_at_cameras)
-        edges_percentile = int(num_cameras * 0.4)
+        edges_percentile = int(num_cameras * 0.2)
         first_percentiles = range(edges_percentile)
         last_percentiles = range(num_cameras - edges_percentile, num_cameras)
         last_percentiles = reversed(list(last_percentiles))
@@ -418,9 +424,8 @@ class Poses:
                 # beta = ((num_cameras + 1 - f_idx + s_idx) / num_cameras)
                 # current_score = ((sum_current_deltas / c_angle) - (start_end_delta_squared / radial_angle))
                 # current_score = abs(c_angle ** 2 * sum_current_deltas - radial_angle ** 2 * start_end_delta_squared)
-                # current_score = abs(sum_current_deltas / curr_frames_left - start_end_delta / frames_to_complete)
-                current_score = abs(sum_current_deltas*frames_to_complete - start_end_delta*curr_frames_left)
-
+                current_score = abs(sum_current_deltas / curr_frames_left - start_end_delta)
+                # current_score = abs(sum_current_deltas*frames_to_complete - start_end_delta*curr_frames_left)
 
                 # check if score sufficent, if not check if gives better result then current best score
                 if current_score < best_score:

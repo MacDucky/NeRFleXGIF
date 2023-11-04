@@ -19,11 +19,16 @@ class LookAtCamera:
         self.plot_color = plot_color
 
     @classmethod
-    def from_position_and_direction(cls, position: ndarray, backward: ndarray):
-        right = np.cross(global_up, backward)
-        right = right / np.linalg.norm(right)
-        up = np.cross(backward, right)
-        up = up / np.linalg.norm(up)
+    def from_position_and_direction(cls, position: ndarray, backward: ndarray, up: ndarray = None):
+        if up is None:
+            right = np.cross(global_up, backward)
+            right = right / np.linalg.norm(right)
+            up = np.cross(backward, right)
+            up = up / np.linalg.norm(up)
+        else:
+            up = up / np.linalg.norm(up)
+            backward = backward / np.linalg.norm(backward)
+            right = np.cross(up, backward)
 
         look_at_cam = np.concatenate((right, up, backward, position))
         look_at_cam = np.reshape(look_at_cam, (4, 3)).T

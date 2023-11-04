@@ -21,7 +21,11 @@ ___
     * [Connecting endpoints:](#connecting-endpoints)
     * [Spline sample rate](#spline-sample-rate)
     * [Generating New Frames](#generating-new-frames)
-    * [Cutting The Video - old](#cutting-the-video---old)
+      * [Step 1.](#step-1)
+      * [Step 2.](#step-2)
+    * [Results](#results)
+      * [Chair](#chair)
+      * [Vase](#vase)
 <!-- TOC -->
 
 ## Installation steps
@@ -61,7 +65,8 @@ ___
     4. Create a remote interpreter based on the docker-compose.yml:
         1. <img src="md_resources/add_interpreter.png" alt="drawing" width="800"/>
         2. Keep pressing next:
-           <img src="md_resources/add_interpreter2.png" alt="drawing" width="800"/>
+
+            <img src="md_resources/add_interpreter2.png" alt="drawing" width="800"/>
         3. Verify that your python script's run configuration has the docker interpreter:
            <img src="md_resources/verify_interpreter.png" alt="drawing" width="800"/>
 
@@ -144,25 +149,42 @@ Let's break down the algorithm into simple steps:
 To cut the video optimally, we want to minimize the following loss function:
 
 ```math
-cost
+cost(s, f) = \left| \sum_{i = s}^{f - 1} \frac{\frac{|z_{i + 1} - z_{i}|}{\alpha_{i}}}{f - s} - \frac{|z_{f} - z_{s}|}{\alpha}\right|
 ```
 
-where $\alpha$ is the angle between start and end point vectors, when projected to the xy plain.
+where:
 
-The concept was to preserve the proportion of the average z-height as we moved from the endpoint (end cut
-point) to the starting point (first cut point) in the pre-cut video. This approach ensured that the transition between
-the start and end maintained a similar "speed" and smoothness to the original frames. The lower the score above, the
-smoother the z-height transitions are.
-We simply brute-force check a section of frames from the start and end edges as pairs of points for the minimal score.
+* calculation of the angle between to vectors is:
+  $ \arccos (\hat{v_1} \cdot \hat{v_2}) $
+* $\alpha$ is the angle between start and end point vectors, when projected to the xy plain.
+* $\alpha_{i} is the angle between the points i and i+1 after projection to xy plain.
+
+The core idea here is to retain a consistent steepness in the z-height when transitioning from the newly cut end point
+to the newly cut starting point. This approach ensures that the frame synthesis process produces a gradual and visually
+pleasing result for the human eye. To accomplish this, we focus on preserving the proportion of the average z-height as
+we move from the endpoint (where the video was cut) to the starting point (which is also a newly cut starting point)
+relative to the z-distance already traveled after the cut. By following this method, we guarantee that the transition
+between the new start and end points maintains a similar "z-speed" and smoothness compared to the speed from the end to
+the start points. In other words, the lower the score obtained through this process, the smoother the z-height
+transitions will be. Our approach involves systematically checking pairs of frames (X% points from the start and the
+end, we chose 20% as X%.), taken from the start and end edges, to find the minimal score that results in the desired
+transition.
+___
 
 ### Connecting endpoints:
 
-To seamlessly connect the new endpoints, we've used cubic splines to create a polynomial path from the endpoint to the
-starting point.
+To create a smooth connection between the new endpoints, we've employed cubic splines to generate a polynomial path that
+extends from the endpoint to the starting point.
 
-Regarding the positions of the newly positioned camera origins, designated for generating new frames, we employed a
-straightforward linear interpolation method for determining the direction vector based on its relative position along
-the path.
+Regarding the positions of the camera origins, which are newly placed to generate the new frames, we've utilized a
+straightforward linear interpolation method to determine the translation (position) vector. This determination is based
+on its relative position along the path.
+
+When it comes to the directions, we've adopted the "look-at" camera model. This model defines the extrinsic camera
+orientation through orthogonal forward, up, and right vectors, which uniquely represent the camera's perspective. In the
+transitional frames, we've conducted linear interpolation for the forward and up vectors accordingly, and obtained the
+right vector by taking the cross product of the forward and up vectors at each step.
+___
 
 ### Spline sample rate
 
@@ -170,72 +192,63 @@ After determining the remaining number of frames following the cut, we can estim
 is proportionate to the number of frames in the complementary $\alpha$ section after the cut. This computation can be
 expressed as follows:
 
+```math
+\#generated\_frames = \#frames\_after\_cut \cdot \frac{\alpha}{2\pi - \alpha} 
+```
+
+___
+
 ### Generating New Frames
 
-To generate new cameras, we need to build a path dependent on the time of the frame.
-We start by setting time points for our frames. We say the time for the last frame is 0, and the first frame's time is 't'. Here's how we calculate 't':
+In order to generate new frames, we construct a 3D cubic spline from the start and end points, by parametrizing a 3d
+curve:
 
 ```math
-t = {\lceil 2 \cdot fps \cdot {p - p_0 \over v - v_0} \rceil \over fps}
+\vec{s(t)}=(x(t), y(t), z(t)), 0 \leq t \leq \frac{\#generated\_frames}{fps}
 ```
 
-After that, we place the first two frames and the last two frames on a smooth curve (Spline technique). We do this because we assume that the motion between frames stays pretty consistent.
+where s(t) is a spline over the x,y,z axes as a function of t respectively,
+and where time at step i := $t_i = \frac{i}{fps}$
 
-As we follow this curve, we pick where each frame goes based on how many frames per second the video has (fps). 
-We also figure out the direction of each frame using linear interpolation on the vector directions. This whole process gives us synthesized frames that are both visually appealing and completes the path from the endpoint to the starting point.
+The generation of the new frames are split into 2 steps:
 
-```math
-number of steps = \lceil{\alpha * \#frames \over (2\pi - \alpha)}\rceil
-```
+1. Generation of "key" frames.
+2. Generation of intermediary frames in between "key" frames.
 
-### Cutting The Video - old
+#### Step 1.
 
-To cut the frames from the video, we build 2 lines, one from the first and second frames positions, and the other from
-the last two frames positions. we calculate the angle between the first frame position and the last line we'll call it
-last angle, and
-the other side too (between the last position and first line) and we'll call it first angle.
-If first angle is smaller than last angle we'll pop from the end, otherwise we will pop the start.
-And if from one edge we can't pop we'll try to pop from the other edge.
-We pop a frame from an edge if the angle between the position of the frame and the line of the other edge is bigger from
-angle between the next position frame and the line other edge.
-For robustness we don't pop from an edge if the angle in the first couple of frames grows.
-
-![img_2.png](img_2.png)
+From empirical evidence, we've concluded that the number of "key" frames should be calculated according to the following
+formula:
 
 ```python
-    def cut_poses(self):
-
-
-did_pop = True
-while len(self.look_at_cameras) > 4 and did_pop:
-    did_pop = False
-    first_angle, last_angle = self.get_edges_angles()
-    is_pop_from_end = abs(first_angle) < abs(last_angle)
-
-    if is_pop_from_end:
-        did_pop = self.pop_from_edge(is_end=True)
-    elif not did_pop:
-        did_pop = self.pop_from_edge(is_end=False)
-        if not is_pop_from_end and not did_pop:
-            did_pop = self.pop_from_edge(is_end=True)
+samples_percentile = 0.3 if num_generated_frames > 30 else 0.5
+number_of_key_frames = num_generated_frames * samples_percentile
 ```
 
-```python
-    def pop_from_edge(self, is_end: bool) -> bool:
+#### Step 2.
 
+Calculation of intermediary frames are done with an interpolation function provided by NerfStudio, see
+documentation [here](https://docs.nerf.studio/reference/api/cameras.html#nerfstudio.cameras.camera_utils.get_interpolated_poses_many).
 
-did_pop = False
-counter = 1
-while not did_pop and counter <= 5:
-    angle, next_angle = self.get_angles(is_end, counter - 1)
-    if abs(angle) > abs(next_angle) or (angle > 0) ^ (next_angle > 0):
-        did_pop = True
-        self.pop_cameras(is_end, counter)
-    counter += 1
-return did_pop
-```
+Note: this could also be done with sampling **all** the frames from our Spline class as well.
+___
 
-the results of the algorithm:
+### Results
 
-![img.png](img.png)
-![img_1.png](img_1.png)
+We've run our algorithm on 3 datasets, one original dataset provided by NerfStudio, and two "field" datasets that we took from a 
+Pixel 3a smartphone (30~ fps), we'll produce the results for the field datasets.
+
+#### Chair dataset
+Chair cut stages:
+
+<img src="md_resources/chair_stages.png" alt="drawing" width="1100"/>
+
+#### Vase dataset
+Vase cut stages:
+
+<img src="md_resources/vase_stages.png" alt="drawing" width="1100"/>
+Vase NerFlexGIF:
+![](md_resources/vase.gif)
+
+---
+Special thanks to [Simon Korman](https://scholar.google.com/citations?user=6OZMoP0AAAAJ&hl=en) for supervising this project!
