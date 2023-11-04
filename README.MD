@@ -155,9 +155,9 @@ cost(s, f) = \left| \sum_{i = s}^{f - 1} \frac{\frac{|z_{i + 1} - z_{i}|}{\alpha
 where:
 
 * calculation of the angle between to vectors is:
-  $ \arccos (\hat{v_1} \cdot \hat{v_2}) $
+  $\arccos (\hat{v_1} \cdot \hat{v_2})$
 * $\alpha$ is the angle between start and end point vectors, when projected to the xy plain.
-* $\alpha_{i} is the angle between the points i and i+1 after projection to xy plain.
+* $\alpha_{i}$ is the angle between the points i and i+1 after projection to xy plain.
 
 The core idea here is to retain a consistent steepness in the z-height when transitioning from the newly cut end point
 to the newly cut starting point. This approach ensures that the frame synthesis process produces a gradual and visually
