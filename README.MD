@@ -247,12 +247,8 @@ Chair cut stages:
 Vase cut stages:
 
 <img src="md_resources/vase_stages.png" alt="drawing" width="1100"/>
-Vase NerFlexGIF:
-<div align="left">
-      <a href="https://www.youtube.com/watch?v=gdrnqnHRqi8">
-         <img src="https://img.youtube.com/vi/gdrnqnHRqi8/0.jpg" style="width:100%;">
-      </a>
-</div>
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/gdrnqnHRqi8?si=S4PHr1DuHNLY46n6" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
 ---
 Special thanks to [Simon Korman](https://scholar.google.com/citations?user=6OZMoP0AAAAJ&hl=en) for supervising this project!
