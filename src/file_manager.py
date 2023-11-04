@@ -9,8 +9,9 @@ from pathlib import Path
 from PIL import Image
 
 from nerfstudio.data.dataparsers.nerfstudio_dataparser import Nerfstudio, NerfstudioDataParserConfig
-from src.data_classes import Transforms, dict_to_transforms, CameraPath, Keyframe, CameraPose, temporary_file_change
+from src.data_classes import Transforms, dict_to_transforms, CameraPath, Keyframe, CameraPose
 from src.gif_maker import create_gif_from_image_dir
+from src.utils import temporary_file_change
 
 
 class FileManager:
@@ -20,6 +21,8 @@ class FileManager:
 
     def __init__(self, path_to_config: str | os.PathLike | Path):
         self._config_path = Path(path_to_config)
+        if self._config_path.parents[-2] != 'workspace':
+            self._config_path = "/workspace" / self._config_path
 
         self._data_name = self._config_path.relative_to('/workspace/outputs/').parents[-2].name
         self._path_to_data = self.BASE_DATA_PATH.joinpath(self._data_name)
@@ -29,14 +32,15 @@ class FileManager:
 
         self._cam_path_dir = self._path_to_data.joinpath('camera_paths')
         if not self._cam_path_dir.exists():
-            os.makedirs(str(self._cam_path_dir),exist_ok=True)
+            os.makedirs(str(self._cam_path_dir), exist_ok=True)
         self._transforms_path = self._path_to_data.joinpath('transforms.json')
         self._transforms = None
 
         self._renders_path = self.BASE_RENDERS.joinpath(self._data_name)
         if not self._renders_path.exists():
             os.makedirs(str(self._renders_path), exist_ok=True)
-        self._last_rendered_images_path = self._renders_path.joinpath('last_render')
+        self._last_rendered_images_path = self._renders_path / 'last_render'
+        self._interactive_path = self._renders_path / 'interactive_images'
         if not self._last_rendered_images_path.exists():
             os.makedirs(str(self._last_rendered_images_path), exist_ok=True)
         self._data_parser: None | Nerfstudio = None
@@ -72,12 +76,16 @@ class FileManager:
         return self._renders_path
 
     @property
+    def interactive_dir(self):
+        return self._interactive_path
+
+    @property
     def last_render_dir(self):
         return self._last_rendered_images_path
 
     def __merge_real_synthesized_images(self, start_cut_point: int, end_cut_point: int):
-        tmp_dir = self._renders_path.joinpath('tmpdir')
-        path_to_images = self._path_to_data.joinpath('images')
+        tmp_dir = self._renders_path / 'tmpdir'
+        path_to_images = self._path_to_data / 'images'
         images = os.listdir(path_to_images)
         index_or_ext = re.compile(r'.*_(\d+)\.((?:png)|(?:jpe?g))$', re.MULTILINE | re.IGNORECASE)
 
@@ -103,8 +111,8 @@ class FileManager:
                 self._transforms = json.load(f, object_hook=dict_to_transforms)
         return self._transforms
 
-    def dump_sorted_transform_file(self, all_transforms: bool = False):
-        transform = self.load_transforms_file(force_load=True).to_dict(all_transforms)
+    def dump_sorted_transform_file(self, all_transforms: bool = False, force_load: bool = True):
+        transform = self.load_transforms_file(force_load=force_load).to_dict(all_transforms)
         with open(self._transforms_path, 'w') as fp:
             json.dump(transform, fp)
 
@@ -128,6 +136,12 @@ class FileManager:
             tile = np.tile(np.array([0, 0, 0, 1]), (self._viewer_poses.shape[0], 1))
             self._viewer_poses = np.concatenate((self._viewer_poses, tile.reshape((-1, 1, 4))), axis=1)
         return self._viewer_poses
+
+    @property
+    def cameras(self):
+        if self._dp_outputs is None:
+            self.viewer_poses(True,True)
+        return self._dp_outputs.cameras
 
     def get_original_positions(self, camera_convention: Literal['opencv', 'opengl']):
         return self._dp_outputs.transform_poses_to_original_space(self._dp_outputs.cameras.camera_to_worlds,
@@ -154,12 +168,12 @@ class FileManager:
             json.dump(cam_path.to_dict(), fp)
         return self._cam_path_dir.joinpath(filename)
 
-    def create_gif(self, filename: str, cut_points: tuple[int, int], fps):
+    def create_gif(self, filename: str, cut_points: tuple[int, int], fps,  keep_gif_dir: bool):
         # Setup Folders
         if not filename.lower().endswith('.gif'):
             filename += '.gif'
 
-        tmp_path = self._renders_path.joinpath('tmpdir')
+        tmp_path = self._renders_path / 'tmpdir'
         if tmp_path.exists():
             shutil.rmtree(str(tmp_path))
         os.makedirs(name=str(tmp_path), exist_ok=True)
@@ -172,4 +186,5 @@ class FileManager:
         assert len(os.listdir(tmp_path))
 
         create_gif_from_image_dir(image_dir=tmp_path, fps=fps, output_path=gifs_folder.joinpath(filename))
-        shutil.rmtree(tmp_path, ignore_errors=True)
+        if not keep_gif_dir:
+            shutil.rmtree(tmp_path, ignore_errors=True)

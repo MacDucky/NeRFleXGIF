@@ -1,13 +1,19 @@
+import os
+
+import torch
 import numpy as np
 from numpy import ndarray
 from math import pi
-from src.look_at_camera import LookAtCamera, creat_direction, AcceptedColor
+from src.look_at_camera import LookAtCamera, create_direction, AcceptedColor
 from src.spline import Spline
 import matplotlib.pyplot as plt
 from typing import Literal
 from os import PathLike
 from PIL import Image
 from pathlib import Path
+from itertools import product
+import shutil
+from nerfstudio.cameras.camera_utils import get_interpolated_poses, get_interpolated_poses_many
 
 Stage = Literal['pre', 'mid', 'post']
 
@@ -33,13 +39,14 @@ def find_angle(mid_point, point1, point2):
 
 
 class Poses:
-    def __init__(self, cameras_extrinsic: ndarray, fps: float):
+    def __init__(self, cameras_extrinsic: ndarray, fps: float, cameras=None):
         self.fps = fps
         self.tendency = 1 / fps
         # after cut is blue
         self.look_at_cameras = []
         # red
         self.popped_out_cams = []
+        self.cameras = cameras
         for camera_extrinsic in cameras_extrinsic:
             self.look_at_cameras.append(LookAtCamera(camera_extrinsic))
         self.og_num_frames = len(self.look_at_cameras)
@@ -116,6 +123,7 @@ class Poses:
         """
         cutting the poses of the cameras which are unnecessary for the newly generated video
         """
+
         did_pop = True
         while len(self.look_at_cameras) > 4 and did_pop:
             did_pop = False
@@ -128,6 +136,12 @@ class Poses:
                 did_pop = self.pop_from_edge(is_end=False)
                 if not is_pop_from_end and not did_pop:
                     did_pop = self.pop_from_edge(is_end=True)
+        self.__cut_vertical_poses()
+
+        # self.__cut_vertical_poses()
+        # pop_from_edges = int(len(self.look_at_cameras) * 0.07)
+        # # self.pop_cameras(True, pop_from_edges)
+        # self.pop_cameras(False, int(len(self.look_at_cameras) * 0.3))
 
     def time_between_poses(self) -> float:
         """
@@ -144,52 +158,100 @@ class Poses:
         t = np.ceil(t / self.tendency) * self.tendency
         return t
 
-    def generate_poses(self):
-        # build the missing path dependent on the time of the video
+    def generate_poses(self, default_method: bool = False):
         first_direction = self.look_at_cameras[-1].get_backward()
         last_direction = self.look_at_cameras[0].get_backward()
 
-        # find the time between
-        t = self.time_between_poses()
+        if default_method:
+            # build the missing path dependent on the time of the video
+            # find the time between
+            t = self.time_between_poses()
 
-        # taking two points in the start and two points in the end
-        times = np.array([-self.tendency, 0, t, t + self.tendency])
-        points = np.array([self.look_at_cameras[-2].get_position(), self.look_at_cameras[-1].get_position(),
-                           self.look_at_cameras[0].get_position(), self.look_at_cameras[1].get_position()])
-        points = np.array(points)
-        spline = Spline(times, points)
+            # taking two points in the start and two points in the end
+            times = np.array([-self.tendency, 0, t, t + self.tendency])
+            points = np.array([self.look_at_cameras[-2].get_position(), self.look_at_cameras[-1].get_position(),
+                               self.look_at_cameras[0].get_position(), self.look_at_cameras[1].get_position()])
+            points = np.array(points)
+            spline = Spline(times, points)
 
-        # the time samples
-        time_samples = [i * self.tendency for i in range(int(t / self.tendency))][1:]
+            # the time samples
+            time_samples = [i * self.tendency for i in range(int(t / self.tendency))][1:]
 
-        # the sampled points on the track
-        sampled_points = []
-        sampled_directions = []
-        for time_sample in time_samples:
-            sampled_points.append(spline.sample_point(time_sample))
-            sampled_directions.append(creat_direction(first_direction, last_direction, time_sample / t))
-        sampled_points = np.array(sampled_points)
-        sampled_directions = np.array(sampled_directions)
+            # the sampled points on the track
+            sampled_points = []
+            sampled_directions = []
+            for time_sample in time_samples:
+                sampled_points.append(spline.sample_point(time_sample))
+                sampled_directions.append(create_direction(first_direction, last_direction, time_sample / t))
+            sampled_points = np.array(sampled_points)
+            sampled_directions = np.array(sampled_directions)
 
-        self.generated_cameras: list[LookAtCamera] = [None] * sampled_points.shape[0]  # noqa
+            self.generated_cameras: list[LookAtCamera] = [None] * sampled_points.shape[0]  # noqa
 
-        for i, _ in enumerate(self.generated_cameras):
-            self.generated_cameras[i] = LookAtCamera.from_position_and_direction(sampled_points[i],
-                                                                                 sampled_directions[i])
-            self.generated_cameras[i].plot_color = 'g'
+            for i, _ in enumerate(self.generated_cameras):
+                self.generated_cameras[i] = LookAtCamera.from_position_and_direction(sampled_points[i],
+                                                                                     sampled_directions[i])
+                self.generated_cameras[i].plot_color = 'g'
+        else:
+            radial_alpha = self.__calculate_radial_angle(self.look_at_cameras[-1].get_position()[:2],
+                                                         self.look_at_cameras[0].get_position()[:2])
+            # sample num is proportional to "existing" deg num of points
+            num_of_steps = int(np.ceil(radial_alpha * len(self.look_at_cameras) / (2 * np.pi - radial_alpha)))
+
+            points = np.array([self.look_at_cameras[-2].get_position(), self.look_at_cameras[-1].get_position(),
+                               self.look_at_cameras[0].get_position(), self.look_at_cameras[1].get_position()])
+            times = np.array([-self.tendency, 0, self.tendency * num_of_steps, (self.tendency + 1) * num_of_steps])
+
+            spline = Spline(times, points)
+
+            samples_percentile = 0.3 if num_of_steps > 30 else 0.5
+            time_samples = np.linspace(0, self.tendency * num_of_steps, int(np.ceil(num_of_steps * samples_percentile)))
+            position_samples = [spline.sample_point(t_point) for t_point in time_samples[1:-1]]
+            time_samples = time_samples / max(time_samples)
+            backward_samples = [create_direction(first_direction, last_direction, t) for t in time_samples[1:-1]]
+            up_samples = [create_direction(self.look_at_cameras[-1].get_up(), self.look_at_cameras[0].get_up(), t) for t
+                          in time_samples[1:-1]]
+            generated_key_poses = [LookAtCamera.from_position_and_direction(pos, direction, up).look_at_cam[:-1, :] for
+                                   pos, direction, up in zip(position_samples, backward_samples, up_samples)]
+            generated_key_poses = ([self.look_at_cameras[-2].look_at_cam[:-1, :],
+                                    self.look_at_cameras[-1].look_at_cam[:-1, :]] +
+                                   generated_key_poses +
+                                   [self.look_at_cameras[0].look_at_cam[:-1, :],
+                                    self.look_at_cameras[1].look_at_cam[:-1, :]])
+            # generated_key_poses = [self.look_at_cameras[-2].look_at_cam[:-1, :]] + generated_key_poses + [
+            #     self.look_at_cameras[2].look_at_cam[:-1, :]]
+            steps_per_transition = int(np.ceil(int(num_of_steps / len(generated_key_poses))))
+            cam_intrinsics = self.cameras.get_intrinsics_matrices()
+
+            generated_cameras, _ = get_interpolated_poses_many(
+                poses=torch.from_numpy(np.array(generated_key_poses)),  # maybe need to remove 1 row in the end
+                Ks=cam_intrinsics[:len(generated_key_poses), :],
+                steps_per_transition=steps_per_transition,
+                order_poses=True
+            )
+
+            # remove duplicated frames,
+            # resulting from generated_key_poses (done deliberately to smooth transition at starting/endpoints
+            generated_cameras = generated_cameras[steps_per_transition:-steps_per_transition]
+            # generated_cameras = get_interpolated_poses(self.look_at_cameras[-1].look_at_cam,
+            #                                            self.look_at_cameras[0].look_at_cam, steps=round(num_of_steps))
+            full_cams = []
+            for cam in generated_cameras:
+                t_to_np = cam.numpy()
+                homogeneous_cam = np.vstack([t_to_np, np.atleast_2d([0, 0, 0, 1])])
+                full_cams.append(LookAtCamera(homogeneous_cam, 'g'))
+            self.generated_cameras = full_cams
 
     def complete_path(self):
         self.cut_poses()
+        # self.generate_poses(default_method=True)
         self.generate_poses()
         self.final_cams = self.look_at_cameras + self.generated_cameras
         self.cams_to_show = self.final_cams
         return self.final_cams
 
     def get_generated_poses(self) -> list[ndarray]:
-        generated_poses = []
-        for generated_camera in self.generated_cameras:
-            generated_poses.append(generated_camera.look_at_cam)
-        return generated_poses
+        return [generated_cam.look_at_cam for generated_cam in self.generated_cameras]
 
     def get_cut_indices(self) -> tuple[int, int]:
         return self.first_idx, self.last_idx
@@ -206,7 +268,7 @@ class Poses:
         for look_at_camera in self.cams_to_show:
             look_at_camera.plot_origin(ax)
 
-    def generate_interactive_images(self, boundaries: int = 5):
+    def __generate_interactive_images(self, boundaries: int = 5):
         """
         Yields the post cut stage images origins at current active origin at every active origin (interactive)
         """
@@ -226,9 +288,29 @@ class Poses:
             ax.set_ylabel('Y axis')
             ax.set_zlabel('Z axis')
             plt.savefig(save_figure_path)
+            plt.close()
             yield f'Saved to {save_figure_path}'
 
-    def show_poses(self, boundaries: int = 5):
+    def generate_intractive_images(self, output_dir: str | Path | os.PathLike,
+                                   base_image_name: str = 'image_{num}.png'):
+        output_dir = Path(output_dir)
+        shutil.rmtree(output_dir, ignore_errors=True)
+        output_dir.mkdir(exist_ok=True)
+        base_image_path = str(output_dir / base_image_name)
+        num = 0
+        generator = self.__generate_interactive_images(boundaries=1)
+        max_digits = len(str(len(self.cams_to_show)))
+        try:
+            while True:
+                next(generator)
+                s_num = str(num).zfill(max_digits)
+                answer = generator.send(base_image_path.format(num=s_num))
+                num += 1
+                print(answer)
+        except StopIteration:
+            print('Done generating images.')
+
+    def show_poses(self, boundaries: int = 1):
         """
         Plot points with camera orientation.
         :param boundaries: xyz axes boundaries in output plot.
@@ -257,7 +339,7 @@ class Poses:
         self.plot_positions(ax)
         return ax
 
-    def show_positions_at_cut_stage(self, stage: Stage, boundaries: int = 5):
+    def show_positions_at_cut_stage(self, stage: Stage, boundaries: int = 1):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         ax.set_xlim(-boundaries, boundaries)
@@ -268,6 +350,7 @@ class Poses:
         ax.set_ylabel('Y axis')
         ax.set_zlabel('Z axis')
         plt.show()
+        plt.close()
 
     def show_all_stages(self, boundaries: int = 5, save_figure_path: str | None = None):
         stages = ['pre', 'mid', 'post']
@@ -283,33 +366,85 @@ class Poses:
             scatter_3d_ax.set_xlabel('X axis')
             scatter_3d_ax.set_ylabel('Y axis')
             scatter_3d_ax.set_zlabel('Z axis')
+            scatter_3d_ax.view_init(elev=20, azim=30)
         plt.tight_layout()
         if save_figure_path is not None:
             plt.savefig(save_figure_path)
+
         plt.show()
+        plt.close()
 
+    def __calculate_vertical_deltas(self, cameras) -> np.ndarray:
+        # abs(dz/da)
+        deltas = []
+        for pair in zip(cameras, cameras[1:]):
+            dz = abs(pair[1].get_position()[2] - pair[0].get_position()[2])
+            da = self.__calculate_radial_angle(pair[1].get_position(), pair[0].get_position())
+            deltas.append(dz / da)
+        return np.array(deltas)
+        # return np.array(deltas) ** 2
 
-def merge_two_images(image_path1: str | PathLike, image_path2: str | PathLike, output_path: str | PathLike):
-    # Load the two images
+    @staticmethod
+    def __calculate_radial_angle(vec1: np.ndarray, vec2: np.ndarray):
+        return np.arccos(np.dot(vec1[:2] / np.linalg.norm(vec1[:2]), vec2[:2] / np.linalg.norm(vec2[:2])))
 
-    with Image.open(Path(image_path1)) as image1, Image.open(Path(image_path2)) as image2:
-        # Ensure they have the same height
-        height = max(image1.height, image2.height)
+    def __calculate_best_vertical_candidates(self):
+        num_cameras = len(self.look_at_cameras)
+        edges_percentile = int(num_cameras * 0.2)
+        first_percentiles = range(edges_percentile)
+        last_percentiles = range(num_cameras - edges_percentile, num_cameras)
+        last_percentiles = reversed(list(last_percentiles))
+        all_deltas = self.__calculate_vertical_deltas(self.look_at_cameras)
 
-        # Define the separation width
-        separation_width = 20  # Adjust this value as needed
+        best_s_idx = 0
+        best_f_idx = num_cameras - 1
+        best_curr_pair = best_s_idx, best_f_idx
 
-        # Calculate the width of the new image
-        new_width = image1.width + separation_width + image2.width
+        best_score = np.inf
 
-        # Create a new blank image with the combined width and height
-        new_image = Image.new('RGB', (new_width, height))
+        all_degs = self.__calculate_all_radial_degrees()
+        for s_idx, f_idx in product(first_percentiles, last_percentiles):
+            sum_deg = np.sum(all_degs[s_idx:f_idx])
+            if sum_deg < np.pi * 2:
+                # Compute current pair score
+                curr_frames_left: int = f_idx - s_idx
 
-        # Paste the first image on the new image
-        new_image.paste(image1, (0, 0))
+                # calc angles
+                radial_angle = self.__calculate_radial_angle(self.look_at_cameras[s_idx].get_position(),
+                                                             self.look_at_cameras[f_idx].get_position())
+                c_angle = np.pi * 2 - radial_angle
 
-        # Paste the second image with separation space
-        new_image.paste(image2, (image1.width + separation_width, 0))
+                frames_to_complete: int = (curr_frames_left / c_angle) * radial_angle
 
-        # Save the resulting image
-        new_image.save(Path(output_path))
+                start_end_delta = (abs(self.look_at_cameras[f_idx].get_position()[2] -
+                                       self.look_at_cameras[s_idx].get_position()[2])) / radial_angle
+                sum_current_deltas = np.sum(all_deltas[s_idx:f_idx])
+
+                # beta is weighted score
+                # beta = ((num_cameras + 1 - f_idx + s_idx) / num_cameras)
+                # current_score = ((sum_current_deltas / c_angle) - (start_end_delta_squared / radial_angle))
+                # current_score = abs(c_angle ** 2 * sum_current_deltas - radial_angle ** 2 * start_end_delta_squared)
+                current_score = abs(sum_current_deltas / curr_frames_left - start_end_delta)
+                # current_score = abs(sum_current_deltas*frames_to_complete - start_end_delta*curr_frames_left)
+
+                # check if score sufficent, if not check if gives better result then current best score
+                if current_score < best_score:
+                    best_score = current_score
+                    best_curr_pair = s_idx, f_idx
+            # if current_score > 0:
+            #     break
+        return best_curr_pair
+
+    def __cut_vertical_poses(self):
+        best_vertical_cut_pair = self.__calculate_best_vertical_candidates()
+        pop_camera_from_start = best_vertical_cut_pair[0]
+        pop_camera_from_end = self.last_idx - self.first_idx - best_vertical_cut_pair[1]
+        self.pop_cameras(False, pop_camera_from_start)
+        self.pop_cameras(True, pop_camera_from_end)
+
+    def __calculate_all_radial_degrees(self):
+        all_cams = self.look_at_cameras
+        all_degs = []
+        for curr, nxt in zip(all_cams, all_cams[1:]):
+            all_degs.append(self.__calculate_radial_angle(curr.get_position(), nxt.get_position()))
+        return np.array(all_degs)

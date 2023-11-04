@@ -1,21 +1,8 @@
-import os
 import re
-import shutil
 import numpy as np
-from pathlib import Path
 from functools import total_ordering
 from typing import Literal
 from dataclasses import dataclass, field, fields, InitVar, asdict
-from contextlib import contextmanager
-
-
-@contextmanager
-def temporary_file_change(file_path: str | os.PathLike | Path):
-    current_file = Path(file_path)
-    real_file = current_file.parent.joinpath('real_file')
-    shutil.copy(current_file, real_file)
-    yield
-    shutil.move(real_file, current_file)
 
 
 @dataclass
