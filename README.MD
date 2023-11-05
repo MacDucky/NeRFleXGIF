@@ -243,6 +243,8 @@ Pixel 3a smartphone (30~ fps), we'll produce the results for the field datasets.
 
 #### Chair dataset
 
+[![CHAIR VIDEO](md_resources/chair_dataset_youtube.png)](https://www.youtube.com/shorts/0mXVdXDLZdQ "Chair Video")
+
 Chair cut stages:
 
 <img src="md_resources/chair_stages.png" alt="drawing" width="1100"/>
