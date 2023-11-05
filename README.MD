@@ -253,6 +253,8 @@ Chair cut stages:
 
 #### Vase dataset
 
+[![VASE VIDEO](md_resources/vase_dataset_youtube.png)](https://www.youtube.com/shorts/BxxvQTl-szg "Vase Video")
+
 Vase cut stages:
 
 <img src="md_resources/vase_stages.png" alt="drawing" width="1100"/>
